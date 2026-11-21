@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A small local web app that turns images, GIFs and videos into ASCII.">
+  <title>Glyph — media to ASCII</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <script>
+    try {
+      const saved = localStorage.getItem("glyph-theme");
+      if (saved === "paper" || saved === "ink") {
+        document.documentElement.dataset.theme = saved;
+      }
+    } catch (_) {}
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-max-upload="{{ max_upload_mb * 1024 * 1024 }}">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Glyph, reload the page">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-word">GLYPH</span>
+    </a>
+    <div class="topbar-side">
+      <span class="local-dot" aria-hidden="true"></span>
+      <span>local only</span>
+      <span class="topbar-sep" aria-hidden="true">/</span>
+      <span class="version">v{{ version }}</span>
+      <button class="theme-btn" id="themeToggle" type="button" aria-label="Switch to the paper theme">paper</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="panel">
+      <section class="panel-block">
+        <div class="eyebrow"><span class="eyebrow-num">01</span><span>source</span></div>
+        <div class="source-empty" id="sourceEmpty">No file yet. Drop one into the preview.</div>
+        <div class="source-card" id="sourceCard" hidden>
+          <div class="source-ext" id="sourceExt">FILE</div>
+          <div class="source-copy">
+            <div class="source-name" id="sourceName"></div>
+            <div class="source-meta" id="sourceMeta"></div>
+          </div>
+          <button class="text-btn" id="replaceBtn" type="button">change</button>
+        </div>
+      </section>
+
+      <section class="panel-block">
+        <div class="eyebrow"><span class="eyebrow-num">02</span><span>output</span></div>
+        <fieldset class="controls" id="controls" disabled>
+          <div class="control">
+            <div class="control-head">
+              <label for="width">columns</label>
+              <output id="widthValue" for="width">100</output>
+            </div>
+            <input id="width" type="range" min="40" max="200" step="1" value="100">
+          </div>
+
+          <div class="control">
+            <label for="ramp">character ramp</label>
+            <div class="select-wrap">
+              <select id="ramp">
+                <option value="classic" selected>classic — @ % # * + = - : .</option>
+                <option value="fine">fine — @ &amp; % Q W N M 0 g B $ # * + = - : .</option>
+                <option value="blocks">blocks — █ ▓ ▒ ░</option>
+                <option value="minimal">minimal — # * + - .</option>
+                <option value="binary">binary — 1 0</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="control">
+            <div class="control-head">
+              <label for="brightness">brightness</label>
+              <output id="brightnessValue" for="brightness">100%</output>
+            </div>
+            <input id="brightness" type="range" min="70" max="130" step="1" value="100">
+          </div>
+
+          <div class="control">
+            <div class="control-head">
+              <label for="contrast">contrast</label>
+              <output id="contrastValue" for="contrast">100%</output>
+            </div>
+            <input id="contrast" type="range" min="70" max="160" step="1" value="100">
+          </div>
+
+          <div class="control toggle-control">
+            <span id="invertLabel">invert</span>
+            <button class="switch" id="invert" type="button" role="switch" aria-checked="false" aria-labelledby="invertLabel">
+              <span aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <div class="control" id="motionControl">
+            <div class="control-head">
+              <label for="fps">motion fps</label>
+              <output id="fpsValue" for="fps">12</output>
+            </div>
+            <input id="fps" type="range" min="6" max="24" step="1" value="12">
+            <p class="hint" id="motionHint">video only</p>
+          </div>
+
+          <button class="text-btn reset-btn" id="resetBtn" type="button">reset settings</button>
+        </fieldset>
+      </section>
+
+      <div class="panel-note">
+        <span class="note-mark" aria-hidden="true">↳</span>
+        Files stay on this machine.<br>Nothing is sent anywhere.
+      </div>
+    </aside>
+
+    <section class="viewer">
+      <div class="viewer-head">
+        <div class="eyebrow"><span class="eyebrow-num">03</span><span>preview</span></div>
+        <div class="viewer-meta" id="viewerMeta">waiting for input</div>
+      </div>
+
+      <div class="dropzone" id="dropzone">
+        <div class="drop-frame" aria-hidden="true">
+<pre>+------------------+
+| .  :  -  =  +  * |
+| #  %  @  %  #  * |
+| +  =  -  :  .    |
++------------------+</pre>
+        </div>
+        <p class="drop-title">Drop a file to begin</p>
+        <p class="drop-sub">PNG · JPG · GIF · WEBP · MP4 · MOV</p>
+        <button class="button" id="browseBtn" type="button">choose file</button>
+        <p class="drop-hint">or press <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>V</kbd></p>
+        <p class="inline-error" id="uploadError" hidden></p>
+        <input id="fileInput" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.mkv,.avi" hidden>
+      </div>
+
+      <div class="stage" id="stage" hidden>
+        <pre class="ascii" id="asciiOutput" aria-label="ASCII output"></pre>
+        <div class="stage-status" id="stageStatus" hidden><span class="status-cursor">▮</span> rendering</div>
+      </div>
+
+      <div class="viewer-foot">
+        <div class="viewer-status">
+          <span id="statusText">Ready when you are.</span>
+          <span class="output-meta" id="outputMeta"></span>
+        </div>
+        <div class="actions" id="actions" hidden>
+          <button class="button ghost" id="playBtn" type="button" hidden>play</button>
+          <button class="button ghost" id="copyBtn" type="button">copy</button>
+          <button class="button solid" id="downloadBtn" type="button">save .txt</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
