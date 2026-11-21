@@ -31,6 +31,13 @@ MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 MAX_FRAMES = 240
 MAX_SECONDS = 20.0
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 @dataclass
 class StoredMedia:
